@@ -1,6 +1,7 @@
 # Obsidian Excalidraw – S펜 버튼 임시 지우개 (Freedraw 전용)
 
-[데모 영상](https://youtu.be/BtNIPnEEaXg)
+- [데모 영상](https://youtu.be/BtNIPnEEaXg)
+- [릴리즈 다운로드](https://github.com/tripkmin/obsidian-excalidraw-rightclick-eraser/releases/tag/v1.0.0)
 
 이 스크립트는 Obsidian의 Excalidraw에서 **S펜 버튼을 눌러 임시로 지우개로 전환**할 수 있도록 도와주는 Automate 스크립트입니다.
 
