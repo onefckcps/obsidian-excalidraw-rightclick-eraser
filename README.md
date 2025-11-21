@@ -1,3 +1,5 @@
+[한국어](README-KR.md)
+
 # Obsidian Excalidraw – Temporary Eraser via S Pen Button (Freedraw Only)
 
 This script allows you to **temporarily switch to the eraser tool by holding the S Pen side button** while using Excalidraw inside Obsidian.
