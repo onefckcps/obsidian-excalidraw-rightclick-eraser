@@ -1,4 +1,4 @@
-/* 
+/*
 This script enables a temporary eraser mode while using the freedraw (pen) tool.
 When you hold the right mouse button (or the S Pen side button) and touch the canvas in freedraw mode, the active tool immediately switches to the eraser so you can erase.
 When you release the button / lift the pen, the tool automatically returns to the original freedraw tool.
@@ -16,7 +16,6 @@ if (!api) {
   return;
 }
 
-// Find Excalidraw container
 let container = null;
 if (ea.targetView?.excalidrawContainer) {
   container = ea.targetView.excalidrawContainer;
@@ -28,7 +27,6 @@ if (ea.targetView?.excalidrawContainer) {
 
 const targetElement = container || window;
 
-// Remove existing listeners (to avoid duplicates)
 if (targetElement._rightClickEraserHandlers) {
   const handlers = targetElement._rightClickEraserHandlers;
   targetElement.removeEventListener("pointerdown", handlers.pointerdown, true);
@@ -38,103 +36,103 @@ if (targetElement._rightClickEraserHandlers) {
   targetElement.removeEventListener("contextmenu", handlers.contextmenu, true);
 }
 
-// -------------------------------
-// State and helper functions
-// -------------------------------
-
 let isEraserMode = false;
 let originalTool = null;
+let syntheticFlag = false;
 
-// Determine whether the eraser button (secondary button) is pressed
-const isEraseButtonDown = (e) => {
-  // Typical buttons bitfield:
-  // 1 = primary, 2 = secondary (right), 4 = middle
-  return (e.buttons & 2) === 2;
+// Check both e.button (which button triggered) and e.buttons (which are held)
+const isEraseButton = (e) => {
+  return e.button === 2 || (e.buttons & 2) === 2;
 };
 
-// Check if current tool is freedraw
 const isFreeDraw = () => {
   const appState = api.getAppState();
   return appState.activeTool?.type === "freedraw";
 };
 
-// Switch to eraser mode
 const switchToEraser = () => {
   if (isEraserMode) return;
   if (!isFreeDraw()) return;
 
   const appState = api.getAppState();
   originalTool = appState.activeTool?.type || "freedraw";
-  api.setActiveTool({ type: "eraser" });
-
   isEraserMode = true;
+  api.setActiveTool({ type: "eraser" });
 };
 
-// Restore original tool
 const restoreTool = () => {
   if (!isEraserMode) return;
 
-  api.setActiveTool({ type: originalTool || "freedraw" });
   isEraserMode = false;
+  api.setActiveTool({ type: originalTool || "freedraw" });
   originalTool = null;
 };
 
-// -------------------------------
-// Event handlers
-// -------------------------------
+// Re-dispatch the blocked right-click as a left-click so Excalidraw starts the eraser stroke
+const dispatchSyntheticDown = (original) => {
+  syntheticFlag = true;
+  const synth = new PointerEvent("pointerdown", {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    pointerId: original.pointerId,
+    pointerType: original.pointerType,
+    clientX: original.clientX,
+    clientY: original.clientY,
+    screenX: original.screenX,
+    screenY: original.screenY,
+    pageX: original.pageX,
+    pageY: original.pageY,
+    width: original.width,
+    height: original.height,
+    pressure: original.pressure || 0.5,
+    tiltX: original.tiltX,
+    tiltY: original.tiltY,
+    isPrimary: original.isPrimary,
+    button: 0,
+    buttons: 1,
+  });
+  original.target.dispatchEvent(synth);
+  syntheticFlag = false;
+};
 
-// pointerdown: handles cases where the button is already pressed at touch-down
+// Block the right-click, switch to eraser, then re-dispatch as left-click
 const onPointerDown = (e) => {
-  if (isEraseButtonDown(e) && isFreeDraw()) {
+  if (syntheticFlag) return;
+
+  if (isEraseButton(e) && (isFreeDraw() || isEraserMode)) {
     e.preventDefault();
     e.stopPropagation();
+    switchToEraser();
+    dispatchSyntheticDown(e);
+  }
+};
+
+const onPointerMove = (e) => {
+  if (isEraseButton(e) && !isEraserMode && isFreeDraw()) {
     switchToEraser();
   }
 };
 
-// pointermove: detects S Pen button press even if it appears only after small movement
-const onPointerMove = (e) => {
-  if (isEraseButtonDown(e)) {
-    if (!isEraserMode && isFreeDraw()) {
-      switchToEraser();
-    }
-  } else {
-    if (isEraserMode && e.buttons === 0) {
-      restoreTool();
-    }
-  }
-};
-
-// pointerup: restore when all buttons are released
+// Only restore on pen lift, not on button release
 const onPointerUp = (e) => {
-  if (isEraserMode && !isEraseButtonDown(e) && e.buttons === 0) {
+  if (isEraserMode) {
     restoreTool();
   }
 };
 
-// pointercancel: gesture canceled (leaving window etc.)
 const onPointerCancel = (e) => {
   if (isEraserMode) restoreTool();
 };
 
-// contextmenu: prevents browser menu + supports environments that trigger right-click only here
+// Fallback: activate eraser via contextmenu if pointerdown detection missed it
 const onContextMenu = (e) => {
-  const appState = api.getAppState();
-  const currentTool = appState.activeTool?.type;
-
-  if (currentTool === "freedraw") {
+  if (isFreeDraw() || isEraserMode) {
     e.preventDefault();
     e.stopPropagation();
     if (!isEraserMode) switchToEraser();
-  } else if (isEraserMode) {
-    e.preventDefault();
-    e.stopPropagation();
   }
 };
-
-// -------------------------------
-// Register listeners
-// -------------------------------
 
 targetElement._rightClickEraserHandlers = {
   pointerdown: onPointerDown,
